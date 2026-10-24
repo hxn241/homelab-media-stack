@@ -1,0 +1,16 @@
+# Server scheduled jobs. Replace /path/to/repo with the actual repository path
+# and install them with:  crontab -e
+#
+# min hour dom mon dow  command
+
+# At boot: wait for drives and start Docker
+@reboot /path/to/repo/scripts/start.sh >> /path/to/repo/logs/start.log 2>&1
+
+# At boot: scraper (API at http://<server>:5000)
+@reboot cd /path/to/repo && .venv/bin/mediaserver-scraper >> logs/scraper.log 2>&1
+
+# Every 30 minutes: organize completed downloads into movies/ and tv/
+0,30 * * * * cd /path/to/repo && .venv/bin/mediaserver-organize >> logs/organize.log 2>&1
+
+# Every 30 minutes (optional): fallback dynv6 DNS update
+*/30 * * * * /path/to/repo/scripts/dynv6.sh >> /path/to/repo/logs/dynv6.log 2>&1

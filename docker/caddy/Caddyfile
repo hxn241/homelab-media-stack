@@ -1,0 +1,17 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt).
+# DOMAIN and SERVER_IP are set in .env and passed to Caddy by docker compose.
+
+{$DOMAIN} {
+    # Redirect the root path to qBittorrent
+    redir / /qbittorrent/
+
+    # Reverse proxy for qBittorrent
+    handle_path /qbittorrent/* {
+        reverse_proxy {$SERVER_IP}:8080
+    }
+
+    # Reverse proxy for Jellyfin
+    handle_path /jellyfin/* {
+        reverse_proxy {$SERVER_IP}:8096
+    }
+}

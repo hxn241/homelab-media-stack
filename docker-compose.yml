@@ -1,0 +1,143 @@
+# All ${...} values come from the .env file in the repository root (see .env.example).
+# Usage: docker compose up -d   (from the repository root)
+name: mediaserver
+
+x-common-env: &common-env
+  PUID: ${PUID:-1000}
+  PGID: ${PGID:-1000}
+  TZ: ${TZ:-Europe/Madrid}
+
+services:
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    network_mode: host
+    environment:
+      <<: *common-env
+    volumes:
+      - ${CONFIG_DIR:-./docker/config}/jellyfin:/config
+      - ${MEDIA_ROOT:?Set MEDIA_ROOT in .env}/movies:/media/movies
+      - ${MEDIA_ROOT}/tv:/media/tv
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      <<: *common-env
+      WEBUI_PORT: 8080
+    volumes:
+      - ${CONFIG_DIR:-./docker/config}/qbittorrent:/config
+      - ${MEDIA_ROOT}/torrents/complete:/downloads
+      - ${MEDIA_ROOT}/torrents/incomplete:/incomplete
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+
+  amule:
+    image: ngosang/amule
+    container_name: amule
+    restart: unless-stopped
+    ports:
+      - "4711:4711"      # WebUI
+      - "4712:4712"      # EC / remote GUI
+      - "4662:4662"      # ED2K TCP
+      - "4665:4665/udp"  # ED2K server UDP (global searches, outbound; no router forwarding needed)
+      - "4672:4672/udp"  # eMule ext / Kademlia UDP
+    environment:
+      <<: *common-env
+      WEBUI_PWD: ${AMULE_WEBUI_PASSWORD:?Set AMULE_WEBUI_PASSWORD in .env}
+      GUI_PWD: ${AMULE_GUI_PASSWORD:?Set AMULE_GUI_PASSWORD in .env}
+    volumes:
+      - ${CONFIG_DIR:-./docker/config}/amule:/home/amule/.aMule
+      - ${MEDIA_ROOT}/torrents/complete:/home/amule/.aMule/Incoming
+      - ${MEDIA_ROOT}/torrents/incomplete:/home/amule/.aMule/Temp
+
+  samba:
+    image: dperson/samba:latest
+    container_name: samba
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      USERID: ${PUID:-1000}
+      GROUPID: ${PGID:-1000}
+    volumes:
+      - ${MEDIA_ROOT}:/share/${SAMBA_SHARE:-media}:rw
+    command: >
+      -g "force user = smbuser"
+      -g "force group = smb"
+      -u "${SAMBA_USER:?Set SAMBA_USER in .env};${SAMBA_PASSWORD:?Set SAMBA_PASSWORD in .env}"
+      -s "${SAMBA_SHARE:-media};/share/${SAMBA_SHARE:-media};yes;no;no;${SAMBA_USER};none;${SAMBA_USER}"
+      -w "WORKGROUP"
+      -g "netbios name = ${SAMBA_NETBIOS_NAME:-MEDIASERVER}"
+      -g "server string = ${SAMBA_NETBIOS_NAME:-MEDIASERVER}"
+      -g "socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=524288 SO_SNDBUF=524288"
+      -g "read raw = yes"
+      -g "write raw = yes"
+      -g "max xmit = 65535"
+      -g "dead time = 15"
+      -g "getwd cache = yes"
+      -g "use sendfile = yes"
+      -g "min protocol = SMB2"
+      -g "server min protocol = SMB2"
+      -g "log level = 1"
+      -p
+    restart: unless-stopped
+
+  # Dynamic DNS: configuration lives in ${CONFIG_DIR}/ddclient/ddclient.conf
+  # (template in docker/ddclient/ddclient.conf.example)
+  ddclient:
+    image: lscr.io/linuxserver/ddclient:latest
+    container_name: ddclient
+    environment:
+      <<: *common-env
+    volumes:
+      - ${CONFIG_DIR:-./docker/config}/ddclient:/config
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+      SERVER_IP: ${SERVER_IP:?Set SERVER_IP in .env}
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CONFIG_DIR:-./docker/config}/caddy/data:/data
+      - ${CONFIG_DIR:-./docker/config}/caddy/config:/config
+    restart: unless-stopped
+
+  # Fetches HTML behind Cloudflare: https://github.com/sarperavci/CloudflareBypassForScraping
+  cloudflare-bypass:
+    image: ghcr.io/sarperavci/cloudflarebypassforscraping:latest
+    container_name: cloudflare-bypass
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      WORKERS: 3
+    shm_size: "2gb"
+    restart: unless-stopped
+
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      <<: *common-env
+      SERVERURL: ${DOMAIN}
+      SERVERPORT: ${WG_PORT:-51820}
+      PEERS: ${WG_PEERS:-1}
+      ALLOWEDIPS: 0.0.0.0/0
+    ports:
+      - "${WG_PORT:-51820}:51820/udp"
+    volumes:
+      - ${CONFIG_DIR:-./docker/config}/wireguard:/config
+    restart: unless-stopped

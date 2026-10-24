@@ -1,0 +1,23 @@
+# ddclient configuration for dynv6 (https://dynv6.com)
+# Copy this file to docker/config/ddclient/ddclient.conf and fill in your details.
+# Documentation: https://ddclient.net
+
+# Check interval (seconds)
+daemon=300
+
+# Use HTTPS for updates
+ssl=yes
+
+# How to obtain the public IP
+use=web, web=checkip.amazonaws.com
+
+# dynv6-compatible protocol
+protocol=dyndns2
+server=dynv6.com
+
+# dynv6 uses "none" as the login when authenticating with a token
+login=none
+password=YOUR_DYNV6_TOKEN
+
+# Your hostname
+yourdomain.dynv6.net

@@ -1,0 +1,26 @@
+# --- Secrets -----------------------------------------------------------------
+.env
+
+# --- Runtime state -------------------------------------------------------------
+# Container configuration and data (WireGuard keys, certificates, Jellyfin
+# database, qBittorrent/aMule passwords...)
+docker/config/
+# Python tools state and cache
+data/
+logs/
+*.log
+
+# --- Python --------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# --- Editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
